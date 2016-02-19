@@ -1,0 +1,214 @@
+<!doctype html>
+<link rel="import" href="../polymer/polymer.html">
+
+<script src="../d3/d3.min.js"></script>
+
+<!--
+An animated chart that shows the progress as a meter
+
+### Styling
+
+The following custom properties are available for styling:
+
+Custom property | Description | Default
+----------------|-------------|----------
+`--progress-meter-background-color` | Color of the background circle | `#e0e0e0`
+`--progress-meter-color-low` | Color of the progress bar for low values | `#f44336`
+`--progress-meter-color-medium` | Color of the progress bar for medium values | `#ffeb3b`
+`--progress-meter-color-high` | Color of the progress bar for high values | `#4caf50`
+
+
+### Example
+
+```html
+<d3-progress-meter radius="100" percentage="0.35" current-text="70" goal-text="Goal: 200" type-text="transactions"></d3-progress-meter>
+```
+
+
+@demo demo/index.html
+-->
+<dom-module id="d3-progress-meter">
+
+	<template>
+		<style>
+			:host {
+				display: inline-block;
+			}
+			#background {
+				/* var(--paper-grey-300) */
+				fill: var(--progress-meter-background-color, #e0e0e0);
+			}
+			#progress.low {
+				/* var(--paper-red-500) */
+				fill: var(--progress-meter-color-low, #f44336);
+			}
+			#progress.medium {
+				/* var(--paper-yellow-500) */
+				fill: var(--progress-meter-color-medium, #ffeb3b);
+			}
+			#progress.high {
+				/* var(--paper-green-500) */
+				fill: var(--progress-meter-color-high, #4caf50);
+			}
+			#current,#goal,#type,#caption {
+				font-family: Arial, sans-serif;
+			}
+			#current {
+				font-weight: bold;
+			}
+			#type {
+				margin-top: 5px;
+				text-align: center;
+				text-transform: uppercase;
+				white-space: nowrap;
+				overflow-x: hidden;
+				text-overflow: ellipsis;
+			}
+			#caption {
+				/*var(--secondary-text-color)*/
+				color: #737373;
+				text-align: center;
+			}
+		</style>
+
+		<svg width$="[[_diameter]]" height$="[[_diameter]]">
+			<g transform$="[[_transform]]">
+				<g>
+					<path id="background"></path>
+					<path id="progress" class$="[[_progressLevel]]"></path>
+					<text id="current" dy="-.2em" text-anchor="middle">[[currentText]]</text>
+					<text id="goal" dy="1.5em" text-anchor="middle">[[goalText]]</text>
+				</g>
+			</g>
+		</svg>
+		<div id="type">[[typeText]]</div>
+		<div hidden$="[[!caption]]" id="caption">[[caption]]</div>
+	</template>
+
+</dom-module>
+
+<script>
+(function() {
+
+	Polymer({
+		is: 'd3-progress-meter',
+		properties: {
+			/**
+			 * Radius of the meter. The element will have twice the size of the radius
+			 */
+			radius: {
+				type: Number,
+				value: 100,
+				observer: '_radiusChanged'
+			},
+
+			/**
+			 * Progress in percent
+			 */
+			percentage: {
+				type: Number,
+				observer: '_percentageChanged'
+			},
+
+			/**
+			 * Large number showing current progress
+			 */
+			currentText: String,
+
+			/**
+			 * Small text indicating when progress will be 100%
+			 */
+			goalText: String,
+
+			/**
+			 * Bottom text describing for what progress is measured
+			 */
+			typeText: String,
+
+			/**
+			 * Optional secondary text displayed under the type text
+			 */
+			caption: String,
+
+			/**
+			 * Amount of progress made (absolute number)
+			 */
+			_progress: {
+				type: Number,
+				value: 0
+			},
+
+			_diameter: {
+				type: Number,
+				computed: '_computeDiameter(radius)'
+			},
+			_transform: {
+				type: String,
+				computed: '_computeTransform(radius)'
+			},
+			_progressLevel: {
+				type: Number,
+				computed: '_computeProgressLevel(percentage)'
+			}
+		},
+		_computeDiameter: function(radius) {
+			return 2 * radius;
+		},
+		_computeTransform: function(radius) {
+			return "translate(" + radius + ", " + radius + ")";
+		},
+		_computeProgressLevel: function(percentage) {
+			if (percentage <= .33) {
+				return 'low';
+			}
+
+			if (percentage <= .66) {
+				return 'medium';
+			}
+
+			return 'high';
+		},
+		_radiusChanged: function(oldVal, newVal) {
+			this._onRadiusChanged();
+			this._onPercentageChanged();
+		},
+		_percentageChanged: function(oldVal, newVal) {
+			this._onPercentageChanged();
+		},
+		_onRadiusChanged: function() {
+			this.progressArc = d3.svg.arc()
+						.startAngle(0)
+						.innerRadius(9/10 * this.radius)
+						.outerRadius(this.radius);
+
+			this.backgroundArc = d3.svg.arc()
+						.startAngle(0)
+						.innerRadius(0.825 * this.radius)
+						.outerRadius(0.85 * this.radius);
+
+			this.$.current.style.fontSize = this.radius/2 + 'px';
+			this.$.goal.style.fontSize = this.radius/5 + 'px';
+			this.$.type.style.fontSize = this.radius/4 + 'px';
+			this.$.type.style.width = 2 * this.radius + 'px';
+			this.$.caption.style.fontSize = this.radius/5 + 'px';
+			this.$.caption.style.width = 2 * this.radius + 'px';
+			this.$.background.setAttribute('d', this.backgroundArc.endAngle(2 * Math.PI)());
+		},
+		_onPercentageChanged: function() {
+			if (typeof this.percentage == 'undefined') {
+				return;
+			}
+			this.percentage = Math.min(1, Math.max(0, this.percentage));
+
+			var i = d3.interpolate(this._progress, this.percentage);
+			d3.select(this).transition().tween(this.$.progress, function() {
+				return function(t) {
+					this._progress = i(t);
+					this.$.progress.setAttribute('d', this.progressArc.endAngle(2 * Math.PI * this._progress)());
+				}.bind(this);
+			}.bind(this));
+		}
+	});
+
+})();
+</script>
